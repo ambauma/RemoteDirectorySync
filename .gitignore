@@ -1,0 +1,7 @@
+rdsEnv/
+.idea/
+htmlcov/
+.coverage
+.pytest_cache/
+rds/__pycache__/
+tests/__pycache__/
