@@ -3,66 +3,74 @@
 A utility to synchronize directories across a local network.
 """
 import hashlib
-import shutil
+import os
 
-def main():
+
+class Node:
     """
-    Main entry to the application.
+    A class to create a tree structure from.  Nodes should have a link to their parent (or None)
+     and links to all children.
     """
-    print("Hello World!")
+    def __init__(self, parent):
+        self.name: list = None
+        self.hash = None
+        self.is_file = None
+        self.children = []
+        self.parent = parent
 
-def _sync_trees(system_of_record, backup_system):
+    def find(self, path: list):
+        """
+        Finds a child node by searching down from its current position in the tree.  Does not
+        search up the tree.
+        """
+        if path == self.name:
+            return self
+        if len(self.children) > 0:
+            for child in self.children:
+                returned = child.find(path)
+                if returned:
+                    return returned
+        return None
+
+    def __repr__(self):
+        return str(self.__dict__)
+
+
+def map_tree(path, parent=None):
     """
-    This method will compare the children of these two directories and then recursively call itself for their children.
-    :param system_of_record:
-    :param backup_system:
-    :return:
+    Reads a filesystem into a data structure.
+    :param path:  The PathLib object representing the filesystem to walk
+    :param parent:  Option toplevel node, used for recursion.
+    :return:  a tree structure that represents all the files.
     """
-    backup_system_children = list(backup_system.iterdir());
-    system_of_record_children = list(system_of_record.iterdir())
-    for sor_child in system_of_record_children:
-        found = False
-        for bs_child in backup_system_children:
-            if sor_child.is_file():
-                if _is_file_same(sor_child, bs_child):
-                    found = True
-                    break
-            else:
-                if _is_dir_same(sor_child, bs_child):
-                    found = True
-                    _sync_trees(sor_child, bs_child)
-        if not found:
-            if sor_child.is_file():
-                shutil.copy(str(sor_child), str(backup_system.absolute()) + "/" + sor_child.name)
-            else:
-                shutil.copytree(str(sor_child), str(backup_system.absolute()) + "/" + sor_child.name)
+    here = Node(parent)
+    here.name = path.split('/')
+    here.is_file = False
+    first_time = True
+    for root, _, files in os.walk(path):
+        # THE FIRST NODE FOUND IS THE ROOT!
+        if first_time:
+            first_time = False
+            continue
+        # root is the folder it has walked into.
+        # _ are the directories in the root, walk will get to them.
+        # files are files in the root directory.
+        abs_root = root.split('/')
+        parent_node = here.find(abs_root[0:-1])
+        current_node = Node(parent_node)
+        parent_node.children.append(current_node)
+        current_node.name = abs_root
+        current_node.is_file = False
+        for file in files:
+            file_node = Node(current_node)
+            file_node.name = os.path.join(root, file).split('/')
+            file_node.is_file = True
+            file_node.hash = _hash('/'.join(file_node.name))
+            current_node.children.append(file_node)
+    return here
 
-
-
-
-
-def _is_file_same(left, right):
-    """
-    Must have the same name and the same hash
-    :param left:
-    :param right:
-    :return:
-    """
-    left_name = left.name
-    left_hash = _hash(left.absolute)
-    right_name = right.name
-    right_hash = _hash(right.absolute)
-    return left_name == right_name and left_hash == right_hash
-
-def _is_dir_same(left, right):
-    return left.name == right.name
-
-def _hash(filename):
+def _hash(filename: str):
     with open(filename, 'rb') as file:
-        bytes = file.read()
-        readable_hash = hashlib.sha256(bytes).hexdigest()
+        file_bytes = file.read()
+        readable_hash = hashlib.sha256(file_bytes).hexdigest()
         return readable_hash
-
-
-if __name__ == '__main__':
-    main()

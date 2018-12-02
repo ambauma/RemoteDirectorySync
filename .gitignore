@@ -5,3 +5,5 @@ htmlcov/
 .pytest_cache/
 rds/__pycache__/
 tests/__pycache__/
+.vscode/
+
